@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 from models import EpisodicMemory
-from schemas import EpisodicMemoryCreate, EpisodicMemoryResponse
+from schema import EpisodicMemoryCreate, EpisodicMemoryResponse
 
 app = FastAPI(title = "Memory System")
 
