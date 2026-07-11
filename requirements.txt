@@ -7,3 +7,4 @@ google-genai
 groq
 sentence-transformers
 pgvector
+dateparser

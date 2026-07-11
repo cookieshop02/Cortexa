@@ -20,4 +20,4 @@ class EpisodicMemory(Base):
     importance_category = Column(String, nullable=True)
     importance_score = Column(Float, nullable=True)
     status = Column(String, default="active")
-    embedding = Column(Vector(dim=384), nullable=True)
+    embedding = Column(Vector(dim=384), nullable=False)
