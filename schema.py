@@ -17,6 +17,8 @@ class EpisodicMemoryResponse(BaseModel):
     content: str
     event_timestamp: datetime
     created_at: datetime
+    last_accessed_at: Optional[datetime] = None
+    access_count: int
     importance_category: Optional[str] = None
     importance_score: Optional[float] = None
     status: str

@@ -4,4 +4,4 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 
 def generate_embedding(text: str) -> list[float]:
     embedding = model.encode(text)
-    return embedding.tolist()
+    return embedding.tolist() #we convert array into list so that we can store in db

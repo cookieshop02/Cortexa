@@ -41,7 +41,10 @@ def get_episodic_memories(user_id: str, db: Session = Depends(get_db)):
 
 @app.post("/memories/ingest")
 def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Depends(get_db)):
-    units = classify_text(text)
+    try:
+        units = classify_text(text)
+    except Exception as e:
+        return {"error": f"Classification failed: {str(e)}"}
 
     stored = []
     skipped = []
@@ -112,18 +115,27 @@ Respond with ONLY one word: "SPECIFIC" or "GENERIC" """
     return "SPECIFIC" in answer
 
 
+def _update_access_tracking(memories: list, db: Session):
+    for memory in memories:
+        memory.last_accessed_at = datetime.now(timezone.utc)
+        memory.access_count = (memory.access_count or 0) + 1
+    db.commit()
+    return memories
+
+
 def _pure_similarity_search(user_id: str, query_embedding, limit: int, db: Session):
-    return (
+    results = (
         db.query(EpisodicMemory)
         .filter(EpisodicMemory.user_id == user_id)
         .order_by(EpisodicMemory.embedding.cosine_distance(query_embedding))
         .limit(limit)
         .all()
     )
+    return _update_access_tracking(results, db)
 
 
 def _time_filtered_similarity_search(user_id: str, query_embedding, start, end, limit: int, db: Session):
-    return (
+    results = (
         db.query(EpisodicMemory)
         .filter(
             EpisodicMemory.user_id == user_id,
@@ -134,10 +146,11 @@ def _time_filtered_similarity_search(user_id: str, query_embedding, start, end, 
         .limit(limit)
         .all()
     )
+    return _update_access_tracking(results, db)
 
 
 def _pure_time_search(user_id: str, start, end, limit: int, db: Session):
-    return (
+    results = (
         db.query(EpisodicMemory)
         .filter(
             EpisodicMemory.user_id == user_id,
@@ -148,6 +161,7 @@ def _pure_time_search(user_id: str, start, end, limit: int, db: Session):
         .limit(limit)
         .all()
     )
+    return _update_access_tracking(results, db)
 
 
 # ---------- Single public search endpoint ----------
