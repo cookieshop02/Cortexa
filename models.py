@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, Text, DateTime, Float, Integer
 from sqlalchemy.dialects.postgresql import UUID
+from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime, timezone
 from database import Base
@@ -19,4 +20,4 @@ class EpisodicMemory(Base):
     importance_category = Column(String, nullable=True)
     importance_score = Column(Float, nullable=True)
     status = Column(String, default="active")
-
+    embedding = Column(Vector(dim=384), nullable=True)
