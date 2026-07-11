@@ -8,3 +8,4 @@ groq
 sentence-transformers
 pgvector
 dateparser
+neo4j

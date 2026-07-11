@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 import dateparser
 import dateparser.search
 
-from database import get_db
-from models import EpisodicMemory
-from schema import EpisodicMemoryCreate, EpisodicMemoryResponse
+from episodic.database import get_db
+from episodic.models import EpisodicMemory
+from episodic.schema import EpisodicMemoryCreate, EpisodicMemoryResponse
 from classifier import classify_text, client  # reusing the same Groq client
 from embeddings import generate_embedding
 
