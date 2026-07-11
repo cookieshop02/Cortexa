@@ -2,4 +2,5 @@ venv/
 .env
 __pycache__/
 main_prev.py
+main_last.py
 test_files/

@@ -2,85 +2,28 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
+
 import dateparser
 import dateparser.search
+
 from episodic.database import get_db
 from episodic.models import EpisodicMemory
 from episodic.schema import EpisodicMemoryCreate, EpisodicMemoryResponse
+from episodic.helpers import check_duplicate_episodic
+
 from classifier import classify_text, client  # reusing the same Groq client
 from embeddings import generate_embedding
-import sys
-import os
+
 from semantic.extractor import extract_triplet
 from semantic.storage import store_triplet
-from episodic.helpers import check_duplicate_episodic
+from semantic.retrieval import search_semantic_memory
 
 app = FastAPI(title="Memory System")
 
 
+# =============================================# EPISODIC============================================================
 
-#------------------------------------------EPISODIC------------------------------------------------------>
-
-# ---------- Basic CRUD (used for manual testing) ----------
-
-@app.post("/memories/episodic", response_model=EpisodicMemoryResponse)
-def create_episodic_memory(memory: EpisodicMemoryCreate, db: Session = Depends(get_db)):
-    new_memory = EpisodicMemory(
-        user_id=memory.user_id,
-        content=memory.content,
-        event_timestamp=memory.event_timestamp,
-        source=memory.source
-    )
-    db.add(new_memory)
-    db.commit()
-    db.refresh(new_memory)
-    return new_memory
-
-
-@app.get("/memories/episodic", response_model=List[EpisodicMemoryResponse])
-def get_episodic_memories(user_id: str, db: Session = Depends(get_db)):
-    memories = db.query(EpisodicMemory).filter(EpisodicMemory.user_id == user_id).all()
-    return memories
-
-
-# ---------- Ingestion pipeline ----------
-
-'''@app.post("/memories/ingest")
-def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Depends(get_db)):
-    try:
-        units = classify_text(text)
-    except Exception as e:
-        return {"error": f"Classification failed: {str(e)}"}
-
-    stored = []
-    skipped = []
-
-    for unit in units:
-        if unit["type"] == "episodic":
-            try:
-                embedding_vector = generate_embedding(unit["content"])
-            except Exception as e:
-                skipped.append({"content": unit["content"], "reason": f"embedding failed: {str(e)}"})
-                continue
-
-            new_memory = EpisodicMemory(
-                user_id=user_id,
-                content=unit["content"],
-                event_timestamp=datetime.now(timezone.utc),
-                source=source,
-                type_confidence=unit["confidence"],
-                importance_category=unit["importance_category"],
-                importance_score=unit["importance_score"],
-                embedding=embedding_vector
-            )
-            db.add(new_memory)
-            stored.append(unit["content"])
-        else:
-            skipped.append(unit)
-
-    db.commit()
-
-    return {"stored_episodic": stored, "skipped": skipped}'''
+# ---------- Ingestion pipeline (shared: episodic + semantic routing) ----------
 
 @app.post("/memories/ingest")
 def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Depends(get_db)):
@@ -99,6 +42,7 @@ def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Dep
             if duplicate:
                 skipped.append({"content": unit["content"], "reason": "duplicate submission (noop)"})
                 continue
+
             try:
                 embedding_vector = generate_embedding(unit["content"])
             except Exception as e:
@@ -158,14 +102,12 @@ def _has_time_reference(query: str) -> tuple[bool, Optional[str], Optional[datet
         return False, None, None, None
 
     if len(result) == 1:
-        # Only one date mentioned — treat it as start, end = now
         phrase, date = result[0]
         return True, phrase, date, datetime.now(timezone.utc)
 
-    # Two or more dates mentioned — treat first as start, last as end
     start_phrase, start_date = result[0]
     end_phrase, end_date = result[-1]
-    full_phrase = f"{start_phrase} {end_phrase}"  # rough combined phrase to strip from query
+    full_phrase = f"{start_phrase} {end_phrase}"
     return True, full_phrase, start_date, end_date
 
 
@@ -262,9 +204,7 @@ def search_memories(user_id: str, query: str, limit: int = 5, db: Session = Depe
     return _pure_similarity_search(user_id, query_embedding, limit, db)
 
 
-#-------------------------------------------------------------SEMANTIC------------------------------------------->
-
-from semantic.retrieval import search_semantic_memory
+# ===========================================SEMANTIC============================================================
 
 @app.get("/memories/semantic/search")
 def semantic_search(user_id: str, query: str):
@@ -273,5 +213,3 @@ def semantic_search(user_id: str, query: str):
         return {"results": results}
     except Exception as e:
         return {"error": f"Semantic search failed: {str(e)}"}
-
-
