@@ -1,4 +1,4 @@
-from graph_db import get_driver
+from semantic.graph_db import get_driver
 from datetime import datetime, timezone
 import uuid
 
@@ -33,9 +33,17 @@ def check_and_invalidate_conflict(user_id: str, entity1: str, relationship_type:
         return conflicts
 
 
+from semantic.normalizer import normalize_triplet
+
 def store_triplet(user_id: str, entity1: str, relationship: str, entity2: str,
                 confidence: float, importance_category: str, importance_score: float,
                 source: str = None) -> dict:
+
+    # Normalize before storing
+    normalized = normalize_triplet(user_id, entity1, relationship, entity2)
+    entity1 = normalized["entity1"]
+    relationship = normalized["relationship"]
+    entity2 = normalized["entity2"]
 
     driver = get_driver()
     relationship_type = relationship.upper()

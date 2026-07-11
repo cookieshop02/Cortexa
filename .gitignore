@@ -5,3 +5,4 @@ main_prev.py
 semantic.test_neo4j.py
 semantic.test_extractor.py
 semantic.test_storage.py
+semantic.test_retrieval.py

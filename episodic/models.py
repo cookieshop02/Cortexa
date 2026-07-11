@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime, timezone
-from database import Base
+from episodic.database import Base
 
 class EpisodicMemory(Base):
     __tablename__="episodic_memories"

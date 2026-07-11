@@ -2,18 +2,23 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
-
 import dateparser
 import dateparser.search
-
 from episodic.database import get_db
 from episodic.models import EpisodicMemory
 from episodic.schema import EpisodicMemoryCreate, EpisodicMemoryResponse
 from classifier import classify_text, client  # reusing the same Groq client
 from embeddings import generate_embedding
+import sys
+import os
+from semantic.extractor import extract_triplet
+from semantic.storage import store_triplet
 
 app = FastAPI(title="Memory System")
 
+
+
+#------------------------------------------EPISODIC------------------------------------------------------>
 
 # ---------- Basic CRUD (used for manual testing) ----------
 
@@ -39,7 +44,7 @@ def get_episodic_memories(user_id: str, db: Session = Depends(get_db)):
 
 # ---------- Ingestion pipeline ----------
 
-@app.post("/memories/ingest")
+'''@app.post("/memories/ingest")
 def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Depends(get_db)):
     try:
         units = classify_text(text)
@@ -74,7 +79,70 @@ def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Dep
 
     db.commit()
 
-    return {"stored_episodic": stored, "skipped": skipped}
+    return {"stored_episodic": stored, "skipped": skipped}'''
+
+@app.post("/memories/ingest")
+def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Depends(get_db)):
+    try:
+        units = classify_text(text)
+    except Exception as e:
+        return {"error": f"Classification failed: {str(e)}", "stored_episodic": [], "skipped": []}
+
+    stored_episodic = []
+    stored_semantic = []
+    skipped = []
+
+    for unit in units:
+        if unit["type"] == "episodic":
+            try:
+                embedding_vector = generate_embedding(unit["content"])
+            except Exception as e:
+                skipped.append({"content": unit["content"], "reason": f"embedding failed: {str(e)}"})
+                continue
+
+            new_memory = EpisodicMemory(
+                user_id=user_id,
+                content=unit["content"],
+                event_timestamp=datetime.now(timezone.utc),
+                source=source,
+                type_confidence=unit["confidence"],
+                importance_category=unit["importance_category"],
+                importance_score=unit["importance_score"],
+                embedding=embedding_vector
+            )
+            db.add(new_memory)
+            stored_episodic.append(unit["content"])
+
+        elif unit["type"] == "semantic":
+            try:
+                triplet = extract_triplet(unit["content"])
+                result = store_triplet(
+                    user_id=user_id,
+                    entity1=triplet["entity1"],
+                    relationship=triplet["relationship"],
+                    entity2=triplet["entity2"],
+                    confidence=triplet["confidence"],
+                    importance_category=triplet["importance_category"],
+                    importance_score=triplet["importance_score"],
+                    source=source
+                )
+                stored_semantic.append({
+                    "fact": f"{triplet['entity1']} {triplet['relationship']} {triplet['entity2']}",
+                    "invalidated": result["invalidated_conflicts"]
+                })
+            except Exception as e:
+                skipped.append({"content": unit["content"], "reason": f"semantic extraction failed: {str(e)}"})
+
+        else:
+            skipped.append(unit)
+
+    db.commit()
+
+    return {
+        "stored_episodic": stored_episodic,
+        "stored_semantic": stored_semantic,
+        "skipped": skipped
+    }
 
 
 # ---------- Internal helper functions (NOT exposed as endpoints) ----------
@@ -187,3 +255,18 @@ def search_memories(user_id: str, query: str, limit: int = 5, db: Session = Depe
 
     query_embedding = generate_embedding(query)
     return _pure_similarity_search(user_id, query_embedding, limit, db)
+
+
+#-------------------------------------------------------------SEMANTIC------------------------------------------->
+
+from semantic.retrieval import search_semantic_memory
+
+@app.get("/memories/semantic/search")
+def semantic_search(user_id: str, query: str):
+    try:
+        results = search_semantic_memory(user_id, query)
+        return {"results": results}
+    except Exception as e:
+        return {"error": f"Semantic search failed: {str(e)}"}
+
+
