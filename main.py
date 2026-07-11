@@ -13,6 +13,7 @@ import sys
 import os
 from semantic.extractor import extract_triplet
 from semantic.storage import store_triplet
+from episodic.helpers import check_duplicate_episodic
 
 app = FastAPI(title="Memory System")
 
@@ -94,6 +95,10 @@ def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Dep
 
     for unit in units:
         if unit["type"] == "episodic":
+            duplicate = check_duplicate_episodic(user_id, unit["content"], db)
+            if duplicate:
+                skipped.append({"content": unit["content"], "reason": "duplicate submission (noop)"})
+                continue
             try:
                 embedding_vector = generate_embedding(unit["content"])
             except Exception as e:

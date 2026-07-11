@@ -39,7 +39,6 @@ def store_triplet(user_id: str, entity1: str, relationship: str, entity2: str,
                 confidence: float, importance_category: str, importance_score: float,
                 source: str = None) -> dict:
 
-    # Normalize before storing
     normalized = normalize_triplet(user_id, entity1, relationship, entity2)
     entity1 = normalized["entity1"]
     relationship = normalized["relationship"]
@@ -48,10 +47,20 @@ def store_triplet(user_id: str, entity1: str, relationship: str, entity2: str,
     driver = get_driver()
     relationship_type = relationship.upper()
 
-    # Step 1: Check for conflicting current facts, and invalidate them
+    # NOOP CHECK — kya ye exact fact already current hai?
+    existing_value = get_current_value(user_id, entity1, relationship_type)
+    if existing_value and existing_value.lower() == entity2.lower():
+        return {
+            "stored": None,
+            "invalidated_conflicts": [],
+            "noop": True,
+            "reason": f"Fact already exists and is current: {entity1} {relationship} {entity2}"
+        }
+
+    # Step 1: Conflict check + invalidate
     conflicts = check_and_invalidate_conflict(user_id, entity1, relationship_type, entity2)
 
-    # Step 2: Store the new fact as current
+    # Step 2: Store naya fact
     with driver.session() as session:
         result = session.run(
             f"""
@@ -87,6 +96,21 @@ def store_triplet(user_id: str, entity1: str, relationship: str, entity2: str,
 
     return {
         "stored": record,
-        "invalidated_conflicts": [c["old_value"] for c in conflicts]
+        "invalidated_conflicts": [c["old_value"] for c in conflicts],
+        "noop": False
     }
     #relationship type doesn't accepted as parameter that's why we have to format in in the query string directly.
+
+def get_current_value(user_id: str, entity1: str, relationship_type: str):
+    driver = get_driver()
+    with driver.session() as session:
+        result = session.run(
+            f"""
+            MATCH (e1:Entity {{name: $entity1, user_id: $user_id}})-[r:{relationship_type}]->(e2:Entity)
+            WHERE r.invalid_at IS NULL
+            RETURN e2.name AS value
+            """,
+            {"entity1": entity1, "user_id": user_id}
+        )
+        record = result.single()
+        return record["value"] if record else None
