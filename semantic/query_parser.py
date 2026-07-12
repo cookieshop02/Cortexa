@@ -12,23 +12,17 @@ QUERY_PARSE_PROMPT = """You are a semantic query understanding system. Given a u
 1. "entity1": the subject being asked about (usually "User")
 2. "relationship": the relationship type being asked about, in snake_case (e.g. "lives_in", "prefers")
 3. "wants_history": true if the user is asking about the PAST/PREVIOUS state (e.g. "used to", "before", "earlier", "purana"), false if asking about the CURRENT state
+4. "topic_hint": if the question mentions a specific category/topic 
+   (e.g. "color", "food", "flavor"), extract that word. Otherwise null.
 
 Return ONLY valid JSON in this format:
 {
   "entity1": "User",
   "relationship": "lives_in",
-  "wants_history": false
+  "wants_history": false,
+  "topic_hint": "color" or null
 }
 
-Example 1:
-Input: "Where does the user live?"
-Output: {"entity1": "User", "relationship": "lives_in", "wants_history": false}
-
-Example 2:
-Input: "Where did the user used to live?"
-Output: {"entity1": "User", "relationship": "lives_in", "wants_history": true}
-
-Now parse this query:
 """
 
 

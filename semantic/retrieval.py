@@ -44,3 +44,19 @@ def search_semantic_memory(user_id: str, query: str):
         return get_historical_facts(user_id, entity1, relationship_type)
     else:
         return get_current_fact(user_id, entity1, relationship_type)
+
+from embeddings import generate_embedding
+import numpy as np
+
+def _filter_by_topic(results: list, topic_hint: str, threshold: float = 0.3):
+    if not topic_hint or not results:
+        return results
+    
+    topic_embedding = generate_embedding(topic_hint)
+    filtered = []
+    for r in results:
+        value_embedding = generate_embedding(r["value"])
+        similarity = np.dot(topic_embedding, value_embedding)  # cosine-ish similarity
+        if similarity > threshold:
+            filtered.append(r)
+    return filtered if filtered else results  # fallback to all if nothing matches

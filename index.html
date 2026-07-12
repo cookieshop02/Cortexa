@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cortexa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --border-soft: #2a2a2e;
+    --border-purple: #7c5cff;
+    --coral: #e2795a;
+    --teal: #5ec8c8;
+    --pink: #f0729a;
+    --blue: #6fa8dc;
+    --lavender: #a78bfa;
+    --text-main: #e8e8ea;
+    --text-dim: #8a8a90;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    min-height: 100vh;
+  }
+
+  .screen {
+    display: none;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+
+  .screen.active { display: flex; }
+
+  /* ---------- Shared header ---------- */
+  .header {
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  /* ---------- Screen 1: Landing ---------- */
+  #landing {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  #landing .header {
+    width: 100%;
+    border-bottom: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 1.5rem 2rem;
+  }
+
+  .landing-content {
+    max-width: 640px;
+  }
+
+  .landing-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .landing-title .coral { color: var(--coral); }
+  .landing-title .teal { color: var(--teal); }
+
+  .landing-subtitle {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    margin-bottom: 3rem;
+  }
+
+  .btn-start {
+    background: transparent;
+    border: 1px solid var(--text-dim);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 0.8rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 3rem;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .btn-start:hover {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+
+  .landing-links {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .link-btn {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.6rem 1.4rem;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: var(--text-main);
+  }
+
+  .link-btn.solid {
+    background: #d9d9d9;
+    color: #1a1a1a;
+    border: none;
+  }
+
+  .link-btn.orange { color: var(--coral); }
+  .link-btn.green { color: var(--teal); }
+
+  /* ---------- Screen 2: App ---------- */
+  #app {
+    padding: 1.5rem 2rem 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .app-title {
+    text-align: center;
+    color: var(--blue);
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 1rem 0 1.5rem;
+  }
+
+  .userid-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .userid-row label {
+    color: var(--pink);
+    font-weight: 700;
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  .userid-row input {
+    flex: 1;
+    background: #17171a;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  .userid-row input:focus { border-color: var(--lavender); }
+
+  .memory-box {
+    border: 1px solid var(--border-purple);
+    border-radius: 10px;
+    padding: 1.25rem;
+    min-height: 260px;
+    margin-bottom: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow-y: auto;
+    max-height: 420px;
+  }
+
+  .bubble {
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    max-width: 90%;
+  }
+
+  .bubble.user {
+    align-self: flex-end;
+    background: #2a2440;
+    color: var(--lavender);
+  }
+
+  .bubble.system {
+    align-self: flex-start;
+    background: #17171a;
+    border: 1px solid var(--border-soft);
+    color: var(--text-main);
+  }
+
+  .bubble.placeholder {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    align-self: center;
+    text-align: center;
+  }
+
+  .action-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .action-row label {
+    color: var(--pink);
+    font-weight: 700;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+  }
+
+  .action-row input {
+    flex: 1;
+    background: var(--lavender);
+    border: none;
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    color: #241c3b;
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  .action-row input::placeholder { color: #4a3d73; }
+
+  .btn-row {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-action {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.65rem 1.2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .btn-action:hover { border-color: var(--teal); color: var(--teal); }
+  .btn-action.remember:hover { border-color: var(--coral); color: var(--coral); }
+</style>
+</head>
+<body>
+
+  <!-- ================= SCREEN 1: LANDING ================= -->
+  <div id="landing" class="screen active">
+    <div class="header">Cortexa</div>
+    <div class="landing-content">
+      <div class="landing-title">
+        <span class="coral">Sharing</span> &amp; <span class="teal">Retrieving</span>
+      </div>
+      <div class="landing-subtitle">Moments and Facts</div>
+
+      <button class="btn-start" onclick="goToApp()">Let's get started!</button>
+
+      <div class="landing-links">
+        <button class="link-btn solid">Docs</button>
+        <button class="link-btn orange">About</button>
+        <button class="link-btn green">Contact</button>
+        <button class="link-btn solid">Github</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN 2: APP ================= -->
+  <div id="app" class="screen">
+    <div class="header">Cortexa</div>
+    <div class="app-title">Talk to your Memory Engine!</div>
+
+    <div class="userid-row">
+      <label>User&nbsp;ID&nbsp;:</label>
+      <input id="userId" type="text" placeholder="e.g. user_1" />
+    </div>
+
+    <div class="memory-box" id="memoryBox">
+      <div class="bubble placeholder">Your memories and answers will appear here...</div>
+    </div>
+
+    <div class="action-row">
+      <label>Remember&nbsp;:</label>
+      <input id="ingestText" type="text" placeholder="Tell me something to remember..." />
+    </div>
+    <div class="btn-row" style="margin-bottom:1.25rem;">
+      <button class="btn-action remember" onclick="ingestMemory()">Save this</button>
+    </div>
+
+    <div class="action-row">
+      <label>Search&nbsp;:</label>
+      <input id="searchQuery" type="text" placeholder="Ask something..." />
+    </div>
+    <div class="btn-row">
+      <button class="btn-action" onclick="searchEpisodic()">Search Moments</button>
+      <button class="btn-action" onclick="searchSemantic()">Search Facts</button>
+    </div>
+  </div>
+
+<script>
+  const BASE_URL = "http://127.0.0.1:8000";
+
+  function goToApp() {
+    document.getElementById("landing").classList.remove("active");
+    document.getElementById("app").classList.add("active");
+  }
+
+  function getUserId() {
+    const val = document.getElementById("userId").value.trim();
+    if (!val) alert("Please enter a User ID first.");
+    return val;
+  }
+
+  function addBubble(text, type = "system") {
+    const box = document.getElementById("memoryBox");
+    const placeholder = box.querySelector(".placeholder");
+    if (placeholder) placeholder.remove();
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble " + type;
+    bubble.textContent = text;
+    box.appendChild(bubble);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function ingestMemory() {
+    const userId = getUserId();
+    if (!userId) return;
+    const text = document.getElementById("ingestText").value.trim();
+    if (!text) return alert("Please type something to remember.");
+
+    addBubble(text, "user");
+
+    try {
+      const url = `${BASE_URL}/memories/ingest?user_id=${encodeURIComponent(userId)}&text=${encodeURIComponent(text)}`;
+      const res = await fetch(url, { method: "POST" });
+      const data = await res.json();
+
+      let message = "Got it, I'll remember that.";
+      if (data.stored_episodic && data.stored_episodic.length === 0 &&
+          data.stored_semantic && data.stored_semantic.length === 0) {
+        message = "Hmm, I couldn't find anything new to save from that.";
+      }
+      addBubble(message, "system");
+    } catch (err) {
+      addBubble("Something went wrong while saving that: " + err.message, "system");
+    }
+
+    document.getElementById("ingestText").value = "";
+  }
+
+  async function searchEpisodic() {
+    const userId = getUserId();
+    if (!userId) return;
+    const query = document.getElementById("searchQuery").value.trim();
+    if (!query) return alert("Please type a search query.");
+
+    addBubble(query, "user");
+
+    try {
+      const url = `${BASE_URL}/memories/episodic/search?user_id=${encodeURIComponent(userId)}&query=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      addBubble(formatEpisodicResponse(data), "system");
+    } catch (err) {
+      addBubble("Something went wrong while searching: " + err.message, "system");
+    }
+  }
+
+  async function searchSemantic() {
+    const userId = getUserId();
+    if (!userId) return;
+    const query = document.getElementById("searchQuery").value.trim();
+    if (!query) return alert("Please type a search query.");
+
+    addBubble(query, "user");
+
+    try {
+      const url = `${BASE_URL}/memories/semantic/search?user_id=${encodeURIComponent(userId)}&query=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      addBubble(formatSemanticResponse(data), "system");
+    } catch (err) {
+      addBubble("Something went wrong while searching: " + err.message, "system");
+    }
+  }
+
+  function formatEpisodicResponse(data) {
+    if (data.message) return data.message;
+    if (!Array.isArray(data) || data.length === 0) {
+      return "We haven't discussed anything related to this yet.";
+    }
+    return data.map(item => {
+      const when = item.event_timestamp ? new Date(item.event_timestamp).toLocaleString() : "";
+      return `• ${item.content}${when ? " (" + when + ")" : ""}`;
+    }).join("\n");
+  }
+
+  function formatSemanticResponse(data) {
+    if (data.message) return data.message;
+    const results = data.results;
+    if (!results || results.length === 0) {
+      return "We haven't discussed anything related to this yet.";
+    }
+    return results.map(r => `• ${r.value}`).join("\n");
+  }
+</script>
+
+</body>
+</html>

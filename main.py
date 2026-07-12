@@ -11,7 +11,7 @@ from episodic.models import EpisodicMemory
 from episodic.schema import EpisodicMemoryCreate, EpisodicMemoryResponse
 from episodic.helpers import check_duplicate_episodic
 
-from classifier import classify_text, client  # reusing the same Groq client
+from classifier import classify_text, client
 from embeddings import generate_embedding
 
 from semantic.extractor import extract_triplet
@@ -20,10 +20,23 @@ from semantic.retrieval import search_semantic_memory
 
 app = FastAPI(title="Memory System")
 
+# ============================== FOR CORS UI CONNECTION ==============================================#
 
-# =============================================# EPISODIC============================================================
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
-# ---------- Ingestion pipeline (shared: episodic + semantic routing) ----------
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",") if os.getenv("ALLOWED_ORIGINS") else []
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],   # sirf jo methods genuinely use karungi
+    allow_headers=["Content-Type", "Authorization"],  # sirf zaroori headers
+)
+
+
+# =============================================EPISODIC============================================================#
 
 @app.post("/memories/ingest")
 def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Depends(get_db)):
@@ -73,10 +86,12 @@ def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Dep
                     confidence=triplet["confidence"],
                     importance_category=triplet["importance_category"],
                     importance_score=triplet["importance_score"],
+                    is_single_valued=triplet.get("is_single_valued", True),
                     source=source
                 )
                 stored_semantic.append({
                     "fact": f"{triplet['entity1']} {triplet['relationship']} {triplet['entity2']}",
+                    "noop": result["noop"],
                     "invalidated": result["invalidated_conflicts"]
                 })
             except Exception as e:
@@ -94,17 +109,15 @@ def ingest_memory(user_id: str, text: str, source: str = None, db: Session = Dep
     }
 
 
-# ---------- Internal helper functions (NOT exposed as endpoints) ----------
+# ---------- Internal helper functions ----------
 
 def _has_time_reference(query: str) -> tuple[bool, Optional[str], Optional[datetime], Optional[datetime]]:
     result = dateparser.search.search_dates(query)
     if not result:
         return False, None, None, None
-
     if len(result) == 1:
         phrase, date = result[0]
         return True, phrase, date, datetime.now(timezone.utc)
-
     start_phrase, start_date = result[0]
     end_phrase, end_date = result[-1]
     full_phrase = f"{start_phrase} {end_phrase}"
@@ -114,14 +127,12 @@ def _has_time_reference(query: str) -> tuple[bool, Optional[str], Optional[datet
 def _has_meaningful_topic(remaining_text: str) -> bool:
     if not remaining_text.strip():
         return False
-
     prompt = f"""Does the following text contain a specific topic/subject to search for, 
-or is it just a generic request to show/list everything with no specific topic?
+    or is it just a generic request to show/list everything with no specific topic?
 
-Text: "{remaining_text}"
+    Text: "{remaining_text}"
 
-Respond with ONLY one word: "SPECIFIC" or "GENERIC" """
-
+    Respond with ONLY one word: "SPECIFIC" or "GENERIC" """
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}]
@@ -138,16 +149,20 @@ def _update_access_tracking(memories: list, db: Session):
     return memories
 
 
-def _pure_similarity_search(user_id: str, query_embedding, limit: int, db: Session):
-    results = (
-        db.query(EpisodicMemory)
+def _pure_similarity_search(user_id: str, query_embedding, limit: int, db: Session, max_distance: float = 0.6):
+    results_with_distance = (
+        db.query(
+            EpisodicMemory,
+            EpisodicMemory.embedding.cosine_distance(query_embedding).label("distance")
+        )
         .filter(EpisodicMemory.user_id == user_id)
-        .order_by(EpisodicMemory.embedding.cosine_distance(query_embedding))
+        .order_by("distance")
         .limit(limit)
         .all()
     )
-    return _update_access_tracking(results, db)
-
+    
+    filtered = [r[0] for r in results_with_distance if r[1] < max_distance]
+    return _update_access_tracking(filtered, db)
 
 def _time_filtered_similarity_search(user_id: str, query_embedding, start, end, limit: int, db: Session):
     results = (
@@ -196,20 +211,29 @@ def search_memories(user_id: str, query: str, limit: int = 5, db: Session = Depe
 
         if _has_meaningful_topic(search_content):
             query_embedding = generate_embedding(search_content)
-            return _time_filtered_similarity_search(user_id, query_embedding, start, end, limit, db)
+            results = _time_filtered_similarity_search(user_id, query_embedding, start, end, limit, db)
         else:
-            return _pure_time_search(user_id, start, end, limit, db)
+            results = _pure_time_search(user_id, start, end, limit, db)
+    else:
+        query_embedding = generate_embedding(query)
+        results = _pure_similarity_search(user_id, query_embedding, limit, db)
 
-    query_embedding = generate_embedding(query)
-    return _pure_similarity_search(user_id, query_embedding, limit, db)
+    if not results:
+        return {"message": "We haven't discussed anything related to this yet."}
+
+    return [EpisodicMemoryResponse.model_validate(r) for r in results]
 
 
-# ===========================================SEMANTIC============================================================
+# ===========================================SEMANTIC============================================================#
 
 @app.get("/memories/semantic/search")
 def semantic_search(user_id: str, query: str):
     try:
         results = search_semantic_memory(user_id, query)
-        return {"results": results}
     except Exception as e:
         return {"error": f"Semantic search failed: {str(e)}"}
+
+    if not results:
+        return {"message": "We haven't discussed anything related to this yet."}
+
+    return {"results": results}
