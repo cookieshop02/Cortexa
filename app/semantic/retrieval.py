@@ -1,8 +1,11 @@
 from semantic.graph_db import get_driver
 from datetime import datetime, timezone
 
+from embeddings import generate_embedding
+import numpy as np
 
-def get_current_fact(user_id: str, entity1: str, relationship_type: str):
+
+def get_current_fact(user_id: str, entity1: str, relationship_type: str, query_text: str = None):
     driver = get_driver()
     with driver.session() as session:
         result = session.run(
@@ -14,8 +17,28 @@ def get_current_fact(user_id: str, entity1: str, relationship_type: str):
             """,
             {"entity1": entity1, "user_id": user_id, "now": datetime.now(timezone.utc).isoformat()}
         )
-        return [dict(record) for record in result]
+        records = [dict(record) for record in result]
 
+    # Agar 0 ya 1 hi match mila, ya query_text nahi diya — seedha return karo
+    if len(records) <= 1 or not query_text:
+        return records
+
+    # MULTIPLE current-values mile — ab topic-disambiguation zaroori hai
+    query_emb = np.array(generate_embedding(query_text))
+    scored = []
+    for rec in records:
+        val_emb = np.array(generate_embedding(rec["value"]))
+        similarity = float(np.dot(query_emb, val_emb) / (np.linalg.norm(query_emb) * np.linalg.norm(val_emb)))
+        scored.append((similarity, rec))
+
+    scored.sort(key=lambda x: -x[0])
+    best_similarity, best_record = scored[0]
+
+    THRESHOLD = 0.35  # tune karna padega real usage se
+    if best_similarity > THRESHOLD:
+        return [best_record]
+
+    return records  # agar clearly best na mile, sab return karo (ambiguous case)
 
 def get_historical_facts(user_id: str, entity1: str, relationship_type: str):
     driver = get_driver()
@@ -32,10 +55,9 @@ def get_historical_facts(user_id: str, entity1: str, relationship_type: str):
         )
         return [dict(record) for record in result]
 
+from semantic.query_parser import parse_semantic_query
 
 def search_semantic_memory(user_id: str, query: str):
-    from semantic.query_parser import parse_semantic_query
-
     parsed = parse_semantic_query(query)
     entity1 = parsed["entity1"]
     relationship_type = parsed["relationship"].upper()
@@ -43,10 +65,8 @@ def search_semantic_memory(user_id: str, query: str):
     if parsed["wants_history"]:
         return get_historical_facts(user_id, entity1, relationship_type)
     else:
-        return get_current_fact(user_id, entity1, relationship_type)
+        return get_current_fact(user_id, entity1, relationship_type, query_text=query)
 
-from embeddings import generate_embedding
-import numpy as np
 
 def _filter_by_topic(results: list, topic_hint: str, threshold: float = 0.3):
     if not topic_hint or not results:
