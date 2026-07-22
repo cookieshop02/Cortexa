@@ -1,7 +1,7 @@
 venv/
 .env
 __pycache__/
-app/main_prev.py
-app/main_last.py
+main_prev.py
+main_last.py
 test_files/
 index_prev.html
